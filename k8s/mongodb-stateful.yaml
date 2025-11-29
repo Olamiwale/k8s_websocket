@@ -1,0 +1,86 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+  namespace: websocket-system
+  labels:
+    app: mongodb
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+    name: mongodb
+  clusterIP: None
+  selector:
+    app: mongodb
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: websocket-system
+spec:
+  serviceName: mongodb-service
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7.0
+        command:
+        - mongod
+        - "--replSet"
+        - "rs0"
+        - "--bind_ip_all"
+        ports:
+        - containerPort: 27017
+          name: mongodb
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: "chat"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      - name: mongo-init
+        image: mongo:7.0
+        command:
+        - bash
+        - "-c"
+        - |
+          sleep 10
+          mongosh --host mongodb-0.mongodb-service:27017 --eval '
+          try {
+            rs.status()
+          } catch(e) {
+            rs.initiate({
+              _id: "rs0",
+              members: [
+                { _id: 0, host: "mongodb-0.mongodb-service:27017" },
+                { _id: 1, host: "mongodb-1.mongodb-service:27017" }
+              ]
+            })
+          }
+          '
+          sleep infinity
+  volumeClaimTemplates:
+  - metadata:
+      name: mongo-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi

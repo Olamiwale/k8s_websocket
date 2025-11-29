@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: websocket-server
+  namespace: websocket-system
+spec:
+  serviceName: websocket-service
+  replicas: 2
+  selector:
+    matchLabels:
+      app: websocket-server
+  template:
+    metadata:
+      labels:
+        app: websocket-server
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: websocket-server
+        image: docker.io/websocket-server:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+          name: ws
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "8080"
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: MONGO_URI
+          value: "mongodb://mongodb-0.mongodb-service:27017,mongodb-1.mongodb-service:27017/chat?replicaSet=rs0"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]

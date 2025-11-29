@@ -1,0 +1,39 @@
+---
+# Headless service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: websocket-service
+  namespace: websocket-system
+  labels:
+    app: websocket-server
+spec:
+  clusterIP: None
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: ws
+  selector:
+    app: websocket-server
+---
+# NodePort service for external access with session affinity
+apiVersion: v1
+kind: Service
+metadata:
+  name: websocket-external
+  namespace: websocket-system
+  labels:
+    app: websocket-server
+spec:
+  type: NodePort
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30080
+    name: ws
+  selector:
+    app: websocket-server
